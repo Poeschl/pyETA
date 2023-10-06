@@ -1,7 +1,10 @@
 import datetime
+from typing import Self
 
 
 class EtaObject:
+  name: str
+  uri: str
 
   def __init__(self, name: str, uri: str):
     self.name = name
@@ -11,17 +14,15 @@ class EtaObject:
     return f"{self.name} ({self.uri})"
 
 
-class VariableList(EtaObject):
-
-  def __init__(self, name: str, uri: str, elements: dict[str, EtaObject]):
-    super().__init__(name, uri)
-    self.elements = elements
-
-  def __str__(self) -> str:
-    return f"{self.name} ({self.uri}) {self.elements}"
-
-
 class Variable(EtaObject):
+  name: str
+  uri: str
+  adv_text_offset: int
+  unit: str
+  str_value: str
+  scale_factor: int
+  dec_places: int
+  value: int
 
   def __init__(self,
                name: str,
@@ -46,12 +47,25 @@ class Variable(EtaObject):
       self.last_updated = None
 
   def __str__(self) -> str:
-    return f"{self.name} ({self.uri}): {self.value} (strValue='{self.str_value}', unit={self.unit}, scaleFactor={self.scale_factor}, last_updated={self.last_updated})"
+    return (f"{self.name} ({self.uri}): {self.value} (strValue='{self.str_value}',"
+            f" unit={self.unit}, scaleFactor={self.scale_factor}, decPlaces={self.dec_places}, advTextOffset={self.adv_text_offset},"
+            f" last_updated={self.last_updated})")
+
+  def normalized_value(self) -> float | None:
+    """
+    Apply scale factor to value.
+    :return: The normalized value after applying the scale factor. Or None in case there is no value.
+    """
+    if self.value is not None:
+      return self.value / max(self.scale_factor, 1)
+    else:
+      return None
 
 
-class Node(EtaObject):
+class VariableList(EtaObject):
+  elements: dict[str, Variable | Self]
 
-  def __init__(self, name: str, uri: str, elements: dict[str, EtaObject]):
+  def __init__(self, name: str, uri: str, elements: dict[str, Variable | Self]):
     super().__init__(name, uri)
     self.elements = elements
 

@@ -1,10 +1,11 @@
+import datetime
 import logging
 import re
 from xml.etree.ElementTree import XML, Element
 
 from requests import get
 
-from models import Node, VariableList, Variable, EtaObject
+from models import VariableList, Variable
 
 SUPPORTED_API_VERSIONS = ["1.2", "1.1", "1.0"]
 API_VERSION_PATH = "/user/api"
@@ -27,36 +28,37 @@ class Eta:
     self.url = "http://{0}:8080".format(host)
     self.hide_io_variables = hide_io_variables
     self.__check_compatibility()
-    logger.info("Initialized ETA connection to %s", host)
+    logger.info("Initialized ETAtouch REST connection to %s", host)
 
   def __check_compatibility(self):
     xml = self.__get_version_xml()
 
     api_element = xml[0]
     if not (api_element.tag.endswith("api") and api_element.attrib["version"] in SUPPORTED_API_VERSIONS):
-      logger.error("Error: Not supported API version. Your ETA Rest Version is not supported by this library.")
-      logger.error("Detected API version: '%s' Supported versions: %s", api_element.attrib["version"], SUPPORTED_API_VERSIONS)
+      logger.error("Error: Not supported api version. Your ETAtouch REST api version is not supported by this library.")
+      logger.error("Detected api version: '%s' Supported versions: %s", api_element.attrib["version"], SUPPORTED_API_VERSIONS)
       exit(1)
+    logger.info("Detected ETAtouch REST api version: %s", api_element.attrib["version"])
 
-  def get_nodes(self) -> dict[str, Node]:
+  def get_nodes(self) -> dict[str, VariableList]:
     """
-    Retrieves all available device node of you ETA heating system.
+    Retrieves all available device nodes of you ETA heating system.
     The nodes are not filled with data but represent the structure of the available variables.
     :return: A dict with names of the nodes and a node object with nested variables.
     """
     xml = self.__get_menu_xml()
-    nodes: dict[str, Node] = {}
+    nodes: dict[str, VariableList] = {}
 
     node: Element
     for node in xml[0]:
       node_elements = self.__parse_object_list(node)
 
-      nodes[node.attrib["name"]] = Node(node.attrib["name"], node.attrib["uri"], node_elements)
+      nodes[node.attrib["name"]] = VariableList(node.attrib["name"], node.attrib["uri"], node_elements)
 
     return nodes
 
-  def __parse_object_list(self, root: Element) -> dict[str, EtaObject]:
-    elements: dict[str, EtaObject] = {}
+  def __parse_object_list(self, root: Element) -> dict[str, Variable | VariableList]:
+    elements: dict[str, Variable | VariableList] = {}
     node_object: Element
 
     uid_blacklist_regexes: list[str] = []
@@ -84,7 +86,24 @@ class Eta:
 
     return elements
 
-  def __get_version_xml(self) -> XML:
+  def update_eta_object(self, element: Variable | VariableList):
+    if isinstance(element, Variable):
+      logger.debug("Update value of %s (%s)", element.name, element.uri)
+      xml = self.__get_variable_xml(element)[0]
+
+      element.adv_text_offset = int(xml.attrib["advTextOffset"])
+      element.unit = xml.attrib["unit"]
+      element.str_value = xml.attrib["strValue"]
+      element.scale_factor = int(xml.attrib["scaleFactor"])
+      element.dec_places = int(xml.attrib["decPlaces"])
+      element.value = int(float(xml.text))
+      element.last_updated = datetime.datetime.now()
+
+    elif isinstance(element, VariableList):
+      for variable in element.elements.values():
+        self.update_eta_object(variable)
+
+  def __get_version_xml(self) -> Element:
     response = get(self.url + API_VERSION_PATH)
     if not response.ok:
       logger.error("Error on communication. (%s, %s) %s", response.status_code, response.url, response.text)
@@ -92,8 +111,16 @@ class Eta:
 
     return XML(response.text)
 
-  def __get_menu_xml(self) -> XML:
+  def __get_menu_xml(self) -> Element:
     response = get(self.url + MENU_PATH)
+    if not response.ok:
+      logger.error("Error on communication. (%s, %s) %s", response.status_code, response.url, response.text)
+      exit(2)
+
+    return XML(response.text)
+
+  def __get_variable_xml(self, variable: Variable) -> Element:
+    response = get(self.url + VARIABLE_PATH + variable.uri)
     if not response.ok:
       logger.error("Error on communication. (%s, %s) %s", response.status_code, response.url, response.text)
       exit(2)
