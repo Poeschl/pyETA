@@ -1,5 +1,8 @@
 # pyETA
 
+[![PyPI - Version](https://img.shields.io/pypi/v/pyETA)](https://pypi.org/project/pyETA/)
+
+
 I wanted to automate measure some sensor values of my ETA heating system.
 So this python package for communicating over the network was born.
 
