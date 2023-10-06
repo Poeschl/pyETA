@@ -5,12 +5,14 @@ from xml.etree.ElementTree import XML, Element
 
 from requests import get
 
-from models import VariableList, Variable
+from models import VariableList, Variable, VariableType
 
 SUPPORTED_API_VERSIONS = ["1.2", "1.1", "1.0"]
 API_VERSION_PATH = "/user/api"
 MENU_PATH = "/user/menu"
 VARIABLE_PATH = "/user/var"
+
+TIMESLOT_REGEX_PATTERN = "\\d{2}:\\d{2} - \\d{2}:\\d{2} \\d{1,3}"
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
@@ -82,7 +84,7 @@ class Eta:
       if len(node_object) > 1:
         elements[node_object.attrib["name"]] = (VariableList(node_object.attrib["name"], node_object.attrib["uri"], self.__parse_object_list(node_object)))
       else:
-        elements[node_object.attrib["name"]] = (Variable(node_object.attrib["name"], node_object.attrib["uri"]))
+        elements[node_object.attrib["name"]] = Variable(node_object.attrib["name"], node_object.attrib["uri"])
 
     return elements
 
@@ -97,6 +99,14 @@ class Eta:
       element.scale_factor = int(xml.attrib["scaleFactor"])
       element.dec_places = int(xml.attrib["decPlaces"])
       element.value = int(float(xml.text))
+
+      if element.adv_text_offset > 0 and len(element.unit) == 0:
+        element.variable_type = VariableType.TEXT
+      elif re.search(TIMESLOT_REGEX_PATTERN, element.str_value) is not None:
+        element.variable_type = VariableType.TIMESLOT
+      else:
+        element.variable_type = VariableType.DEFAULT
+
       element.last_updated = datetime.datetime.now()
 
     elif isinstance(element, VariableList):
