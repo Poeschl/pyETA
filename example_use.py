@@ -1,14 +1,13 @@
 import logging
 
-import pyETA
-from pyETA import VariableList, Variable
+from pyeta import VariableList, Variable, Eta
 
 if __name__ == '__main__':
   # Set logging to debug is optional, but will show some behind-the-scene stuff
   logging.basicConfig()
   logging.getLogger("pyETA").setLevel("DEBUG")
 
-  eta = pyETA.Eta("heizung.speedport.ip")
+  eta = Eta("heizung.speedport.ip")
 
   # Print available Nodes (the tab names on ETAtouch)
   nodes = eta.get_nodes()
